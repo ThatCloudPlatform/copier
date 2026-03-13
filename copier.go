@@ -882,25 +882,21 @@ func fieldByName(v reflect.Value, name string, caseSensitive bool) reflect.Value
 	}
 
 	// If exact match fails, perform case-insensitive matching
-	// but prioritize exported fields
+	// but prioritize exported fields while preserving promoted-field lookup.
 	var candidates []reflect.Value
-	var candidateNames []string
+	var candidateFields []reflect.StructField
 
-	structType := v.Type()
-	for i := 0; i < structType.NumField(); i++ {
-		fieldType := structType.Field(i)
+	for _, fieldType := range reflect.VisibleFields(v.Type()) {
 		if strings.EqualFold(fieldType.Name, name) {
-			field := v.Field(i)
+			field := v.FieldByIndex(fieldType.Index)
 			candidates = append(candidates, field)
-			candidateNames = append(candidateNames, fieldType.Name)
+			candidateFields = append(candidateFields, fieldType)
 		}
 	}
 
 	// If there are multiple candidate fields, prioritize exported ones
 	for i, candidate := range candidates {
-		fieldName := candidateNames[i]
-		// Check if field is exported (starts with uppercase letter)
-		if len(fieldName) > 0 && unicode.IsUpper(rune(fieldName[0])) {
+		if candidateFields[i].IsExported() {
 			return candidate
 		}
 	}
