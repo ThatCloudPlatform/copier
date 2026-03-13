@@ -36,8 +36,8 @@ func TestCaseInsensitiveFieldMatching(t *testing.T) {
 		t.Errorf("State field not copied correctly. Expected: %d, Got: %d", source.State, dest.State)
 	}
 
-	if dest.state == uint32(source.State) {
-		t.Errorf("state field not copied correctly. Expected: %d, Got: %d", source.State, dest.state)
+	if dest.state != 0 {
+		t.Errorf("unexported field state should remain zero, got: %d", dest.state)
 	}
 
 	if dest.PageNumber != source.PageNumber {
@@ -67,5 +67,44 @@ func TestExactCaseMatching(t *testing.T) {
 
 	if dest.Name != source.Name || dest.Age != source.Age {
 		t.Errorf("Fields not copied correctly. Expected: %+v, Got: %+v", source, *dest)
+	}
+}
+
+func TestCaseInsensitiveMatchingWithEmbeddedField(t *testing.T) {
+	type Embedded struct {
+		Name string
+	}
+
+	type Dest struct {
+		name string
+		Embedded
+	}
+
+	type Source struct {
+		NAME string
+	}
+
+	source := Source{
+		NAME: "John",
+	}
+
+	dest := &Dest{}
+
+	err := CopyWithOption(dest, &source, Option{
+		CaseSensitive: false,
+	})
+	if err != nil {
+		t.Fatalf("Copy failed: %v", err)
+	}
+
+	if dest.Name != source.NAME {
+		t.Fatalf("embedded promoted field not copied correctly. expected %q, got %q", source.NAME, dest.Name)
+	}
+
+	if dest.Embedded.Name != source.NAME {
+		t.Fatalf("embedded field not copied correctly. expected %q, got %q", source.NAME, dest.Embedded.Name)
+	}
+	if dest.name != "" {
+		t.Fatalf("unexported field should not be copied, got %q", dest.name)
 	}
 }
