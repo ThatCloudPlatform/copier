@@ -211,7 +211,7 @@ func copier(toValue interface{}, fromValue interface{}, opt Option) (err error) 
 					to.SetMapIndex(toKey, toValue)
 					break
 				}
-				elemType = reflect.PointerTo(elemType)
+				elemType = reflect.PtrTo(elemType)
 				toValue = toValue.Addr()
 			}
 		}
@@ -875,5 +875,37 @@ func fieldByName(v reflect.Value, name string, caseSensitive bool) reflect.Value
 		return v.FieldByName(name)
 	}
 
-	return v.FieldByNameFunc(func(n string) bool { return strings.EqualFold(n, name) })
+	// For case-insensitive matching, prioritize exported fields
+	// First try exact match (might be the exported field)
+	if field := v.FieldByName(name); field.IsValid() {
+		return field
+	}
+
+	// If exact match fails, perform case-insensitive matching
+	// but prioritize exported fields while preserving promoted-field lookup.
+	var candidates []reflect.Value
+	var candidateFields []reflect.StructField
+
+	for _, fieldType := range reflect.VisibleFields(v.Type()) {
+		if strings.EqualFold(fieldType.Name, name) {
+			field := v.FieldByIndex(fieldType.Index)
+			candidates = append(candidates, field)
+			candidateFields = append(candidateFields, fieldType)
+		}
+	}
+
+	// If there are multiple candidate fields, prioritize exported ones
+	for i, candidate := range candidates {
+		if candidateFields[i].IsExported() {
+			return candidate
+		}
+	}
+
+	// If no exported field found, return the first match (preserve original behavior)
+	if len(candidates) > 0 {
+		return candidates[0]
+	}
+
+	// If no match found, return zero value
+	return reflect.Value{}
 }
